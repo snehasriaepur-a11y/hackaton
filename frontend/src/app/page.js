@@ -1,9 +1,9 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import AppShell, { PageHead } from '../../components/AppShell';
-import { Panel } from '../../components/ui';
-import HeroCanvas from '../../components/HeroCanvas';
+import AppShell, { PageHead } from '../components/AppShell';
+import { Panel } from '../components/ui';
+import HeroCanvas from '../components/HeroCanvas';
 
 export default function Home() {
   const [overview, setOverview] = useState(null);
