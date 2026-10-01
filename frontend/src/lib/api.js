@@ -1,18 +1,16 @@
-const DEFAULT_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const EXPLICIT_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
-const PORTS = [5000, 5001, 5002, 5003, 5004, 5005];
+let remoteBase = null;
+let remoteChecked = false;
 
-let resolvedBase = DEFAULT_BASE;
-let probed = false;
-
-async function ping(base, ms = 700) {
+async function ping(base, ms = 600) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
     const res = await fetch(`${base}/api/health`, { signal: ctrl.signal, cache: 'no-store' });
     if (!res.ok) return false;
     const body = await res.json();
-    return body?.service === 'ctem-matching-engine' || body?.status === 'ok';
+    return body?.service === 'ctem-matching-engine';
   } catch {
     return false;
   } finally {
@@ -21,26 +19,25 @@ async function ping(base, ms = 700) {
 }
 
 async function resolveBase() {
-  if (probed) return resolvedBase;
-  probed = true;
-  if (await ping(DEFAULT_BASE)) {
-    resolvedBase = DEFAULT_BASE;
-    return resolvedBase;
-  }
-  const base = DEFAULT_BASE.replace(/:\d+$/, '');
-  for (const p of PORTS) {
-    const candidate = `${base}:${p}`;
-    if (candidate === DEFAULT_BASE) continue;
+  if (EXPLICIT_BASE) return EXPLICIT_BASE.replace(/\/$/, '');
+  if (remoteChecked) return remoteBase || '';
+
+  remoteChecked = true;
+  if (typeof window === 'undefined') return '';
+
+  const host = window.location.hostname || 'localhost';
+  for (const port of [5000, 5001, 5002]) {
+    const candidate = `${window.location.protocol}//${host}:${port}`;
     if (await ping(candidate)) {
-      resolvedBase = candidate;
-      return resolvedBase;
+      remoteBase = candidate;
+      return remoteBase;
     }
   }
-  return resolvedBase;
+  return '';
 }
 
 export function apiBase() {
-  return resolvedBase;
+  return EXPLICIT_BASE || remoteBase || '(same origin)';
 }
 
 async function request(method, path, body) {
@@ -48,12 +45,15 @@ async function request(method, path, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' }, cache: 'no-store' };
   if (body !== undefined) opts.body = JSON.stringify(body);
 
+  const suffix = path.startsWith('/api') ? path : `/api${path || '/'}`;
+  const url = base ? `${base}${suffix}` : suffix;
+
   let res;
   try {
-    res = await fetch(`${base}${path}`, opts);
+    res = await fetch(url, opts);
   } catch {
-    probed = false;
-    throw new Error(`Cannot reach the matching engine at ${base}. Run \`npm run dev\` from the project root.`);
+    remoteChecked = false;
+    throw new Error('The matching engine did not respond. Reload the page.');
   }
 
   if (!res.ok) {

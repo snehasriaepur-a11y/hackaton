@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const { v4: uuidv4 } = require('uuid');
+const http = require('http');
 
 const { patients } = require('./data/patients');
 const { trials } = require('./data/trials');
@@ -211,8 +212,21 @@ app.use((err, req, res, next) => {
 
 const BASE_PORT = Number(process.env.PORT) || 5000;
 
-function listen(port, attemptsLeft = 8) {
-  const server = app.listen(port, () => {
+function startOn(port, attemptsLeft) {
+  const server = http.createServer(app);
+
+  server.once('error', (err) => {
+    if (err && err.code === 'EADDRINUSE' && attemptsLeft > 0) {
+      const next = port + 1;
+      console.warn(`Port ${port} is busy — falling back to ${next}.`);
+      startOn(next, attemptsLeft - 1);
+      return;
+    }
+    console.error(err);
+    process.exit(1);
+  });
+
+  server.listen(port, () => {
     console.log(`CTEM matching engine listening on :${port}`);
     console.log(`  health   http://localhost:${port}/api/health`);
     console.log(`  patients http://localhost:${port}/api/patients`);
@@ -220,29 +234,15 @@ function listen(port, attemptsLeft = 8) {
     console.log(`  metrics  http://localhost:${port}/api/evaluation/metrics`);
   });
 
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
-      const next = port + 1;
-      console.warn(`Port ${port} is busy — falling back to ${next}.`);
-      listen(next, attemptsLeft - 1);
-    } else {
-      console.error(err);
-      process.exit(1);
-    }
-  });
+  server.on('close', () => process.exit(0));
+  return server;
+}
 
-  const shutdown = () => {
-    console.log('\nshutting down');
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 3000).unref();
-  };
+if (require.main === module) {
+  const server = startOn(BASE_PORT, 8);
+  const shutdown = () => server.close();
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }
 
-if (require.main === module) {
-  listen(BASE_PORT);
-}
-
 module.exports = app;
-module.exports.listen = listen;

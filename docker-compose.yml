@@ -1,17 +1,22 @@
-version: '3.8'
 services:
-  backend:
-    build: .
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    restart: unless-stopped
+
+  engine:
+    build:
+      context: .
+      target: engine
     ports:
       - "5000:5000"
     environment:
       - NODE_ENV=production
       - PORT=5000
-    restart: unless-stopped
-  frontend:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
     restart: unless-stopped
