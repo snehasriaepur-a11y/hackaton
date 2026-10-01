@@ -6,7 +6,10 @@ const LINKS = [
   { href: '/workspace', label: 'Workspace' },
   { href: '/protocols', label: 'Protocols' },
   { href: '/cohort', label: 'Cohort' },
-  { href: '/evaluation', label: 'Evaluation' },
+  { href: '/data', label: 'Data & Evaluation' },
+  { href: '/assistant', label: 'Assistant' },
+  { href: '/glossary', label: 'Glossary' },
+  { href: '/evaluation', label: 'Metrics' },
   { href: '/architecture', label: 'Architecture' }
 ];
 

@@ -4,7 +4,9 @@ const matchingEngine = require('./matchingEngine');
 const nlp = require('./nlp');
 const evaluation = require('./evaluation');
 
-module.exports = Object.assign({}, matchingEngine, nlp, evaluation, {
+const search = require('./search');
+const assistant = require('./assistant');
+module.exports = Object.assign({}, matchingEngine, nlp, evaluation, search, assistant, {
   patients,
   trials
 });

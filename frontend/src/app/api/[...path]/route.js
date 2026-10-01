@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import engine from '../../../lib/ctem';
+import { GLOSSARY } from '../../../lib/ctem/glossary';
 
 const {
   patients,
@@ -81,6 +82,22 @@ function handleGet(segments, url) {
   }
 
   if (head === 'vocabulary') return json({ labs: LAB_LABELS, fields: FIELD_LABELS });
+
+  if (head === 'glossary') return json({ terms: GLOSSARY });
+
+  if (head === 'ingest') {
+    const { patientsToCsv, parseCsv, coercePatient } = require('../../../lib/ctem/ingest');
+    if (a === 'template') {
+      return new Response(patientsToCsv(), {
+        status: 200,
+        headers: {
+          'content-type': 'text/csv; charset=utf-8',
+          'content-disposition': 'attachment; filename="ctem-patient-template.csv"'
+        }
+      });
+    }
+    return fail('Use POST /api/ingest with a CSV or JSON body');
+  }
 
   if (head === 'patients') {
     if (!a) return json({ count: patients.length, data: patients });
@@ -171,6 +188,39 @@ async function handlePost(segments, req) {
   const [head, a, b] = segments;
 
   if (head === 'patients') {
+    if (Array.isArray(body.patients)) {
+      const { coercePatient } = require('../../../lib/ctem/ingest');
+      const added = [];
+      const rejected = [];
+      body.patients.forEach((raw, i) => {
+        const rec = coercePatient(raw, added.length + i + 1);
+        if (!rec.diagnosis) {
+          rejected.push({ row: i + 1, reason: 'missing diagnosis' });
+          return;
+        }
+        patients.push(rec);
+        added.push(rec);
+      });
+      return json({ added: added.length, rejected, total: patients.length, data: added }, 201);
+    }
+
+    if (typeof body.csv === 'string' && body.csv.trim()) {
+      const { parseCsv, coercePatient } = require('../../../lib/ctem/ingest');
+      const rows = parseCsv(body.csv);
+      if (!rows.length) return fail('No rows found in the CSV. Include a header row.');
+      const added = [];
+      const rejected = [];
+      rows.forEach((raw, i) => {
+        const rec = coercePatient(raw, added.length + i + 1);
+        if (!rec.diagnosis) {
+          rejected.push({ row: i + 1, reason: 'missing diagnosis column' });
+          return;
+        }
+        patients.push(rec);
+        added.push(rec);
+      });
+      return json({ added: added.length, rejected, total: patients.length, data: added }, 201);
+    }
     if (!body.diagnosis) return fail('diagnosis is required');
     const record = seedPatient(body);
     patients.push(record);
